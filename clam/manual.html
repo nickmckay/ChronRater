@@ -1,0 +1,508 @@
+<html>
+<head>
+<title>clam 2.2 manual</title>
+<style TYPE="text/css">
+ p, li, tr {font-family: sans-serif; font-size: 80%; text-align: justify}
+ h1 {font-family: sans-serif; font-weight: bold; color: green; font-size: 120%}
+ h2 {font-family: sans-serif; color: green; font-size: 90%}
+ h3 {font-family: sans-serif; color: green; font-size: 80%; font-style: italic; font-weight: normal}
+ th {font-weight: bold}
+ code {color: green}
+ hr {color: green}
+ sup {font-size: 60%; vertical-align: text-top}
+</style>
+</head>
+<body lang="en-GB" link="blue" dir="LTR">
+
+<img src="keepclam.png">
+
+<a href="#top"></a><h1>clam 2.2 manual</h1>
+
+<hr>
+<ul>
+ <li><a href="#intro">Introduction</a>
+  <li><a href="#calcurves">Calibration curves</a> 
+ <li><a href="#single">Calibrating a single date</a>
+ <li><a href="#sequence">Age-depth modelling</a>
+ <li><a href="#options">All options</a>
+ <li><a href="#versions">Version history</a>
+ <li><a href="#tips">R tips and tricks</a>
+ <li><a href="#trouble">Troubleshooting</a>
+ <li><a href="#refs">References</a>
+ <li><a href="#this">About this manual</a>
+</ul>
+<hr>
+
+
+<h2><a name="intro"></a>Introduction</h2>
+
+<p>Clam (Blaauw, 2010; this version 2.2) was written to perform 'classic' age-depth modelling - prior to applying more sophisticated techniques such as Bayesian age-depth modelling. A recent version of the free open-source statistical software <a HREF=http://www.r-project.org>R</a> (current version 3.0.1; R Development Core Team, 2013) should also be installed on your computer.
+
+<p>Clam consists of some 1200 lines of R code (file clam.R), a range of <sup>14</sup>C calibration curves, an example <sup>14</sup>C-dated core (/Cores/Example), and this manual (manual.html). The clam code itself consists of a few dozen functions; the user will normally need to know some details about up to four of these only (<code>calibrate</code>, <code>clam</code>, <code>cores</code> and <code>plot.proxies</code>).
+
+<p>Unzip clam.zip to somewhere on your computer where you have write access (e.g., <code>c:\clam\</code>), open R, change the working directory to where you've saved clam (see <a href="#tips">R tips and tricks</a>), and load the code by typing <code>source(&quot;clam.R&quot;)</code> (press <code>&lt;enter&gt;</code> after every command).
+
+<p>Different unzipping programs will treat folders within zip-files in different ways. Thus you might end up with a clam folder nested within another clam folder. You can drag the correct clam folder (the one containing the file clam.R, the folder Cores and some more files) to your destination of choice. 
+
+<p>Please do cite clam (Blaauw, 2010) in your work, as well as its version (most recent 2.2), calibration curve(s) used (e.g., Reimer et al., 2013) and the settings applied to obtain the age-models.
+
+<hr>
+<table align="right"><tr><td><a href="#top">to top of page</a></table>
+<h2><a name="calcurves"></a>Radiocarbon calibration</h2>
+
+<p>Radiocarbon dates need to be calibrated so that they can be placed onto a calendar year time-scale. Clam's default calibration curve is the northern hemisphere terrestrial curve IntCal13.14C (<code>cc=1</code>) from Reimer et al. (2013). This can be changed to Marine13 (Reimer et al., 2013; <code>cc=2</code>) or SHCal13 (Hogg et al., 2013; <code>cc=3</code>). In case you want to change the default calibration curve permanently, open clam.R in a plain text editor, and within the opening brackets of the <code>clam</code> and/or <code>calibrate</code> functions change <code>cc</code> to either 2 (cc2, Marine13) or 3 (cc3, SHCal13). You can also provide an alternative curve (which must be present within the clam folder), change the default name of <code>cc1</code>, <code>cc2</code> or <code>cc3</code> to that alternative curve, and set <code>cc</code> to the desired curve. See later for special cases such as mixed marine/terrestrial dates.
+
+<p>Negative radiocarbon ages are calibrated with one of the postbomb curves from Hua et al. (2013), but the user needs to inform clam which one should be used. Three postbomb curves are provided for different regions of the northern hemisphere (check the map of Hua et al. (2013) or <a target="new" href=http://www.calib.qub.ac.uk/CALIBomb/frameset.html>calibomb</a>), while there are two curves for the southern hemisphere. For example, to use the first of the three northern hemisphere curves with <code>clam</code> and/or <code>calibrate</code>, provide the option <code>postbomb=1</code>, while for southern hemisphere samples, use <code>postbomb=4</code> for SH zones 1-2 or <code>postbomb=5</code> for SH zone 3. Clam will provide a warning if no such option is provided with negative radiocarbon ages.
+
+<a name="eq.1"></a>
+<p>The clam functions to calibrate <sup>14</sup>C dates are similar to that of standard calibration approaches such as used in <a target="new" href="http://www.calib.org">Calib</a> (Stuiver and Reimer, 1993) or <a target="new" href="http://c14.arch.ox.ac.uk/embed.php?File=oxcal.html">OxCal</a> (Bronk Ramsey, 2013). In short, for all calendar ages &theta; in a wide range, the corresponding <sup>14</sup>C ages &mu; of the calibration curve &mu;(&theta;) can be looked up, and compared with the measurement's <sup>14</sup>C age <i>y</i> and reported error <i>sd</i>. The probability for each calendar year can then be expressed using the normal function:<br>
+<i>y</i>|&theta; ~ N(&mu;(&theta;), &sigma;),
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<i>[eq.1]</i><br>
+where &sigma; is a combination of the error of the measurement and that of the calibration curve,<br>
+&sigma;<sup>2</sup> = <i>sd</i><sup>2</sup> + &sigma;(&theta;)<sup>2</sup>.
+
+<p>Since <sup>14</sup>C measurements are <sup>14</sup>C/C ratios, which decrease exponentially with <sup>14</sup>C time, the normal distributions on the <sup>14</sup>C scale should in fact be slightly asymmetric (the older end having longer tails). Therefore, just like OxCal (Bronk Ramsey, 2013) clam does not calculate directly on the <sup>14</sup>C scale, but instead first converts all <sup>14</sup>C ages to their fractions, F14C (Reimer et al., 2004). As an example, check the result of <code>calibrate(20000, 2000)</code>. 
+
+<p>By default, the dates are calibrated assuming a Gaussian distribution. However, as discussed by Christen and Perez (2009), since the reported errors of radiocarbon dates are estimates of the true error only, this error could be under- or over-estimated. Therefore, instead of using just a single value for the error, Christen and Perez (2009) propose to use a distribution for the error size. This student-t distribution has two parameters, a and b, and to maintain symmetry, a should always equal b-1. As said above, the default is not to use this alternative calibration model (<code>calibt=FALSE</code>). For student-t calibration, provide two parameters instead, e.g., <code>calibt=c(3,4)</code>. This will result in distributions very similar to those using the default Gaussian, but with longer tails. Try the clam function <code>student.t()</code> to see the difference between Gaussian and student-t calibration. 
+
+<p>Postbomb dates are frequently reported as pMC (percentage modern carbon, normalised to 100%) or F14C (normalised to 1; Reimer et al., 2004). Equivalent radiocarbon ages can be calculated using the function <code>pMC.age</code>, e.g., for a pMC of 130&plusmn;2, <code>pMC.age(130, 2)</code> results in a <sup>14</sup>C age of -2108&plusmn;123 (the default is to round to zero decimal places, <code>decimals=0</code>). Similarly, <sup>14</sup>C ages can be turned into pMC using, for example, <code>age.pMC(-2108, 123)</code>, or to F14C using <code>age.pMC(-2108, 123, 1)</code> (here by default rounded to three significant digits, <code>decimals=3</code>).
+
+<p>In some cases, there's a need to mix calibration curves. For example, a <sup>14</sup>C date from a northern hemisphere animal with a 30% marine diet should probably be calibrated using a curve that consists of 30% Marine13 and 70% IntCal13. To do so, use <code>mix.curves(0.7)</code>, which will produce a curve (by default named "mixed.14C"; <code>name="mixed.14C</code>). The two curves to be mixed are <code>cc1="IntCal13.14C"</code> and <code>cc2="Marine13.14C"</code> by default, and this can be changed by supplying alternative names for <code>cc1</code> and/or <code>cc2</code>. In case of a regional marine reservoir effect (see the <a target="new" href=http://www.calib.qub.ac.uk/marine>Marine Reservoir Correction database</a>), provide its average and error as, e.g., <code>mix.curves(offset=c(100,50))</code> if the regional offset is 100 +- 50 C14 yr. Subsequently use this custom-built curve by setting <code>cc=4</code> in the functions <code>clam()</code> and <code>calibrate()</code> (see below). 
+
+<p>For reasons of compatibility, clam also provides the previous calibration curves IntCal09, Marine09 and SHCal04. The previous southern hemisphere (SH) calibration curve (SHCal04) only extended to 11 kcal BP, and clam provided a function <code>glue.curves</code> to extend this curve back to 50,000 cal BP using the northern hemisphere curve, applying an offset. However since the current calibration curves all run to 50,000 cal BP, this function is not needed anymore. It is however kept for backward compatibility, and has as defaults <code>nh="IntCal09.14C"</code>, <code>sh="SHCal04.14C"</code>, <code>offset=c(56, 24)</code>, and <code>name="gluedHemispheres.14C"</code>. This custom-built curve can then be used by setting cc=5 in the functions <code>clam()</code> and <code>calibrate()</code> (see below). 
+
+<hr>
+<table align="right"><tr><td><a href="#top">to top of page</a></table>
+<h2><A NAME="single"></A>Calibrating a single date</h2>
+
+<p>In clam, single <sup>14</sup>C dates can be calibrated using several options. Type <code>calibrate()</code> to see how a date of 2450 &plusmn; 50 <sup>14</sup>C BP gets calibrated (the calibration curve happens to show a plateau around this <sup>14</sup>C age). A graph of the raw and calibrated date will be drawn, and the calibrated ranges will be printed. To calibrate a different date, provide its mean and error as follows: <code>calibrate(mean, error)</code>, e.g., for a date of 130 &plusmn; 20 <sup>14</sup>C BP, type <code>calibrate(cage=130, error=20)</code> or, shorter, <code>calibrate(130,20)</code>. As this date will fall partly beyond the younger extreme of the calibration curve, a warning will be given (similar warnings will be given for too old dates).
+
+<p>In case the date has a reservoir effect or age offset, e.g. of 100 <sup>14</sup>C years, provide this as follows: <code>calibrate(130,20,reservoir=100)</code>. If you want to include an uncertainty for this offset, provide this as follows, e.g., for an uncertainty of 50yr, <code>calibrate(130,20,reservoir=c(100, 50))</code>. The uncertainty for the age offset will then be added to the error (by taking the square root of the sum of the squared error and the squared offset uncertainty). If the carbon of your sample has mixed marine/terrestrial sources, instead apply the marine offset using <code>mix.curves</code> (see above), and calibrate the date using that custom-built curve.
+
+<p>If you prefer to work with, e.g., 68% as opposed to the default 95% confidence intervals, type: <code>calibrate(130, 20, prob=0.68)</code> or <code>calibrate(130,20,,.68)</code> (the commas between the brackets indicate the position of the option; the standard deviation is the fourth option of the calibrate function). Clam calculates the calibrated distribution for every single calendar year (<code>yrsteps=1</code>) within a wide range of the <sup>14</sup>C date (default but adaptable <code>times=5</code> standard deviations or 99.999999% of its probability distribution). This range can also be adapted by changing the option <code>expand</code> (default <code>expand=0.1</code>). Probabilities below a threshold (default <code>threshold=1e-6</code>) will be neglected.
+
+<p>By default the northern hemisphere terrestrial calibration curve is used (<code>cc=1</code>, <code>cc1="IntCal13.14C"</code>). To use alternative curves, change <code>cc</code> to 2 (<code>cc2="Marine13.14C"</code>), 3 (<code>cc3="SHCal13.14C"</code>), 4 (<code>cc4="mixed.14C"</code>), 5 (<code>cc5="gluedHemispheres.14C"</code>), or change the file names of <code>cc1</code>, <code>cc2</code>, <code>cc3</code>, <code>cc4</code> or <code>cc5</code>.
+
+<p>Clam works in cal BP (calendar years before AD 1950) by default, but can work with cal BC/AD through the option <code>BCAD=TRUE</code>. 
+
+By default the Gaussian distribution is used to calibrate dates. For use of the student-t distribution instead, provide two sensible values, e.g., <code>calibt=c(3,4)</code>.
+
+<p>Calibrated distributions are usually reduced to their 68% or 95% calibrated ranges, taking into account the asymmetric and multi-peaked shape of these distributions. In clam, this is done by calculating the <i>highest posterior density</i> (hpd): i) the probability distribution (see above) is normalised to 100%, ii) the calendar years are ranked according to their probabilities, iii) those calendar ages with a cumulative sum at or below the desired probability threshold (default 95%) are retained, and iv) the extremes and probabilities of any sub-ranges within these calendar ages are reported. Calibrated ranges at 68% will obviously result in narrower confidence intervals, and a perceived higher precision, than 95% ranges. However, given the often asymmetric and multi-modal nature of calibrated distributions, the probability that the 'true' calendar date lies outside the 1 sd hpd ranges is considerable (c. 32%). Therefore the use of 95% calibrated ranges is preferable, and default in clam. The hpd ranges are calculated at yearly resolution by default (<code>hpdsteps=1</code>).
+
+<p>Negative radiocarbon ages are calibrated with postbomb curves, but the user needs to tell clam which curve to use. For example, to use the first of the three northern hemisphere curves, provide the option <code>postbomb=1</code>, while for southern hemisphere samples, use <code>postbomb=4</code>. Default curves can be changed; currently they are <code>pb1="postbomb_NH1.14C"</code>, <code>pb2="postbomb_NH2.14C"</code>, <code>pb3="postbomb_NH3.14C"</code>, <code>pb4="postbomb_SH1-2.14C"</code> and <code>pb5="postbomb_SH3.14C"</code> .  If no <code>postbomb</code> option is provided for negative radiocarbon ages, clam will not calibrate the date. Given the sub-year resolution of postbomb-curves, hpd ranges are calculated at high resolution by default (<code>pbsteps=0.01</code>). Chose alternative values with care as they may cause unexpected results.
+
+Generally the calculations are removed from memory after calibration; if you want to have them stored (say for subsequent manipulations), provide the option <code>storedat=TRUE</code>.
+
+<p>A graph of the calibration is produced by default (<code>graph=TRUE</code>), and it can be adapted in several ways. The limits of the horizontal (calendar scale) and vertical (<sup>14</sup>C scale) axes are calculated automatically but can be changed by providing alternative values for the options <code>yrmin</code>, <code>yrmax</code>, <code>minC14</code> and <code>maxC14</code>, respectively. The titles of both axis can be changed by providing alternative titles to <code>xlab</code> and/or <code>ylab</code>, and also the top title can be adapted using <code>title</code>. The heights of the distributions of the <sup>14</sup>C and calibrated ages can be set to alternative values using <code>calheight</code> (default 0.3). Parameters for white space around the graph can be changed (default <code>mar=c(3.5, 2, 2, 1)</code> for spacing below, to the left, above and to the right respectively), as can the spacing for the axis labels (<code>mgp=c(2,1,0)</code>). By default, the axes are connected at the lower left, <code>bty="l"</code>. Check the R documentation of <code>par()</code> for more options.
+
+<p>The colours of the <sup>14</sup>C date, the calibration curve, the entire distributions, as well as of the highest posterior density (hpd) ranges, can be changed by providing an alternative colour in <code>date.col</code>, <code>cc.col</code>, <code>dist.col</code>, and/or <code>sd.col</code>, respectively. The default colours are transparent grey for the date's probability distributions (<code>dist.col=rgb(0,0,0, 0.3)</code> and <code>sd.col=rgb(0,0,0, 0.5)</code>; change the last value of rgb for different greyscale values), red for the uncalibrated mean and error bars (<code>date.col="red"</code>), and transparent green for the calibration curve (<code>cc.col=rgb(0, 0.5, 0, 0.7)</code>). R's <code>rgb()</code> function expects values between 0 and 1 for red, green and blue, respectively, followed by a value for the semi-transparency (also between 0 and 1). Some graphic devices such as postscript are unable to use transparency; in that case provide different colours or leave the fourth value empty.
+
+
+<hr>
+<table align="right"><tr><td><a href="#top">to top of page</a></table>
+<h2><a NAME="sequence"></a>Age-depth modelling</h2>
+
+<p>Cores containing several <sup>14</sup>C and/or other dates can be processed semi-automatically in order to obtain age-depth models. In the process, the <sup>14</sup>C dates are calibrated, after which age-depth curves are repeatedly drawn through point estimates sampled from the dates. Age-depth models can be based on linear interpolation, linear/polynomial regression, or cubic, smooth or locally weighted splines. For each date, the probability of a calendar year being sampled is proportionate to its calibrated probability (see above and Blaauw, 2010). Uncertainty ranges as well as a 'best' age-model are calculated.
+
+<p>Additional cores should be put in a comma-separated file in a sub-folder of the Cores folder, e.g., <code>clam\Cores\MyCore1\MyCore1.csv</code> if your core is called MyCore1. You can make subfolders within your file browser (Windows: Windows explorer, within the clam/Cores folder click File, Folder, or right-click, New, Folder. Mac: in Finder, within the clam/Cores folder, click File, Folder). Ensure that the names of the core's folder and root-filename match, e.g., using exactly similar upper- and lower case letters. Add a final empty line to the .csv file by pressing 'Enter' after the file's last value. Avoid the use of spaces or non-standard characters in file names. The plain text file should consist of 6 or 7 columns (also called fields), containing in the following exact order (see the example below): 
+<ol>
+ <li>identification labels (e.g. <sup>14</sup>C lab codes)
+ <li><sup>14</sup>C ages for <sup>14</sup>C-dated depths; leave empty for non-<sup>14</sup>C dated depths
+ <li>cal BP ages (for any non-<sup>14</sup>C dates such as the core surface; leave empty for levels with <sup>14</sup>C dates)
+ <li>errors (reported 1 standard deviation errors; this column should never be left empty. Errors should always be larger than 0)
+ <li>age offsets if known (otherwise leave empty)
+ <li>depths (depths in the sequence were the samples were taken, default unit <code>depth="cm"</code>; this column should never be left empty)
+ <li>thicknesses of the sampled slices (optional column; leave empty for default of 1)
+</ol>
+
+<p>Age-models for the core can then be produced by typing, e.g., <code>clam("MyCore1")</code>. 
+
+<p>When more information is available for an age-model (e.g., the surface of a core could be of known age, or a tephra layer or change in the pollen spectrum could be related to a historical event), such information can be included as extra data points in the first (identifying label), third (cal_age), fourth (error), sixth (depth) and seventh (thickness; optional) columns. In such case, the second column for <sup>14</sup>C ages should be left empty.
+
+<p>The comma-separated files (.csv, default extension <code>ext=".csv"</code>, default field separator <code>sep=","</code>, default decimal point separator <code>dec="."</code>) can be produced in a spreadsheet program such as Excel by providing the relevant data in the six or seven columns (not providing commas after the values), leaving any non-relevant cells empty, and saving/exporting as .csv. Names for the columns should be provided on the first line (best avoid using spaces). This will produce a plain text file with commas separating the fields (NB: for localized versions of Excel that use ';' as separator, set <code>sep=";"</code>, and similarly check that the correct decimal points are used in <code>dec</code>). None of the columns, except the first one, should contain text characters, e.g., avoid stating "AD 1900" or "1900-1950" for a calendar age. Clam will complain upon finding letters in these fields. Also check that all information is provided in the exact order as described above. Please order the dates according to their depths, starting with the highest dates and working downwards. Each dated level should contain one date only, either in the C14 column or the calendar column; clam will warn if it finds duplicate entries. The first column, the one identifying the dates, should never be named "ID" because this could hang Excel!
+
+<p>Inspection of the files in a text editor such as Wordpad is highly recommended, for example to remove excessive commas, text or spaces. Make sure that files are saved as *.csv, and not with an additional .txt extension (Windows has a tendency to do so automatically). In case clam finds files with a *.csv.txt extension, it will remove the .txt extension. Experience learns that after having produced several csv-files, the user will often find it easier to avoid the spreadsheet stage and produce them by typing/pasting values directly into a plain-text editor.
+
+<CENTER>
+<p ALIGN=CENTER><i>Contents of Example.csv:</p></i>
+<TABLE width=50% BORDER=0 CELLPADDING=4 CELLSPACING=0>
+ <thEAD>
+  <TR VALIGN=TOP>
+   <th>lab_ID, <th>C14_age, <th>cal_age, <th>error, <th>reservoir, <th>depth
+   <TR VALIGN=TOP><td>surface, <td>, <td>-55, <td>1,<td>, <td>0
+   <TR VALIGN=TOP><td>GR0001, <td>95, <td>, <td>37, <td>, <td>31
+   <TR VALIGN=TOP><td>GR0002, <td>410, <td>, <td>45, <td>, <td>135
+   <TR VALIGN=TOP><td>GR0003, <td>1502, <td>, <td>37, <td>, <td>298
+   <TR VALIGN=TOP><td>GR0004, <td>2167, <td>, <td>42, <td>, <td>365
+   <TR VALIGN=TOP><td>GR0005, <td>2700, <td>, <td>46, <td>, <td>445
+   <TR VALIGN=TOP><td>GR0006, <td>7890, <td>, <td>70, <td>, <td>485
+   <TR VALIGN=TOP><td>GR0007, <td>9440, <td>, <td>60, <td>, <td>537
+   <TR VALIGN=TOP><td>GR0008, <td>9860, <td>, <td>70, <td>, <td>559
+   <TR VALIGN=TOP><td>GR0009, <td>13150, <td>, <td>60, <td>, <td>673
+ </TABLE>
+</CENTER>
+
+<p>The provided example (default <code>name="Example"</code>) is core Quilichao-1 which was sampled from a Colombian lake (Berrio et al., 2002). This core was chosen because it was dated at a rather high resolution, and appears to contain a hiatus (e.g., try <code>hiatus=450</code> for a hiatus at 450 cm depth), which forms an interesting challenge for age-modelling software. 
+
+<p>For a list of available cores, type <code>cores</code>. This list can also be used to avoid typing a core name, e.g., to calculate default age-depth models for cores 1 to 10 in the list, type <code>for(i in cores[1:10]) clam(i)</code>.
+
+
+<h3>Dating points</h3>
+
+<p>Dates could suffer from systematic <sup>14</sup>C age offsets (reservoir effect) or could show individual offsets (outliers, e.g. <code>outliers=6</code> if the sixth date in the list is considered to be outlying). In case several dates appear to be outlying, their positions in the dat-file should be given as a combination (e.g., <code>outliers=c(3,7)</code> if the third and seventh date counting from the top of a sequence are outlying). By default, outliers are plotted as red (<code>outcol="red"</code>) crosses of default size (<code>outlsize=1</code>), and they are not taken into account within the age-model. If, for whatever reason, certain dates need to be temporally ignored instead, this can be done using the option ignore (e.g., to ignore the fifth date in a core, add <code>ignore=5</code>).
+
+<p>By default the northern hemisphere terrestrial calibration curve is used (<code>cc=1</code>, <code>cc1="IntCal13.14C"</code>). To use alternative curves, change <code>cc</code> to 2 (<code>cc2="Marine13.14C"</code>), 3 (<code>cc3="SHCal13.14C"</code>), 4 (<code>cc4="mixed.14C"</code>), or 5 (<code>cc5="gluedHemispheres.14C"</code>), or alternatively change the file names of <code>cc1</code>, <code>cc2</code>, <code>cc3</code>, <code>cc4</code> or <code>cc5</code>.
+
+<p>Negative radiocarbon ages are calibrated using postbomb curves, but the user needs to inform clam which curve to use. For example, to use the first of the three northern hemisphere curves, provide the option <code>postbomb=1</code>, and for southern hemisphere samples, use <code>postbomb=4</code>. Default curves are <code>pb1="postbomb_NH1.14C"</code>, <code>pb2="postbomb_NH2.14C"</code>, <code>pb3="postbomb_NH3.14C"</code>, <code>pb4="postbomb_SH1-2.14C"</code> and <code>pb5="postbomb_SH3.14C"</code>.  If no <code>postbomb</code> option is provided for cores with negative radiocarbon ages, clam will not produce a chronology. Given the sub-year resolution of postbomb-curves, hpd ranges are calculated at high resolution by default (<code>pbsteps=0.01</code>). 
+
+<p>Calibration (using <a href="#eq.1">eq.1</a> on the F14C scale) is performed at yearly resolution by default (<code>yrsteps=1</code>), and using a wide range of calendar ages to encompass most of the calibrated distribution (<code>times=5</code>). Although the dates are calibrated using the Guassian distribution by default, the student-t distribution will be used if two parameters are provided, e.g., <code>calibt=c(3,4)</code>. Default steps for calculating highest posterior densities are at <code>hpdsteps=1</code>. The calibration range is constructed by encompassing all C14 ages of the calibration curve that fall within a range of +times*error and -times*error, default <code>times=5</code>. Years with probabilities below a threshold are neglected (default <code>threshold=1e-6</code>). The calendar scale is in cal BP by default (<code>BCAD=FALSE</code>), but this can be changed to cal BC/AD.
+
+<p>Radiocarbon dates which fall partly or entirely beyond the range of the calibration curve are truncated resp. removed with a warning.
+
+<p>In case you have information that no date should be younger than a certain threshold, this can be provided as, for example, <code>youngest=-50</code>. 
+
+<p>Sometimes there could be additional dating information that cannot be added in the ways described above. For example, a non-<sup>14</sup>C date on the cal BP or BC/AD scale might have a non-normal distribution, or one of the <sup>14</sup>C dates needs to be calibrated using a different calibration curve than the other ones in a core. In that case, produce a plain text file with the calendar years and their probabilities for that date in two columns, and save it within the core's folder. Separate the columns using spaces or tabs, and don't use any headers. The files should have at least two entries for the date's ages and their probabilies. Provide the dates on the time scale you will be using, i.e., either as cal BP or BC/AD. The file name should start with the core's name, then a lower dash, then its depth and finally the ".txt" extension. For example if you've got such dating information at 470 cm depth in core MyCore1, save the file as "Cores/MyCore1/MyCore1_470.txt"). Then run clam with the option <code>extradates=470</code>. Multiple dates (at distinct depths) can be provided, producing files as explained above and providing the multiple depths as for example <code>extradates=c(90, 470)</code>.
+
+<h3>Age-depth model</h3>
+<p>Having established the information about the individual dating points, the next step is to provide age estimates for all depths in a sequence. This is done by imposing a relationship between depth and age, modelling the accumulation of the sequence through time. The user will have to decide on the most likely age-depth model, e.g., a deposit in a stable environment will probably have accumulated with fewer events of hiatuses or accumulation rate changes than one from a more variable environment, and should thus be modelled using a smoother age-depth model.
+
+<p>Several types of age-models can be chosen in order to estimate the ages of the non-dated levels (Bennett, 1994): linear interpolation between neighbouring levels (default, <code>type=1</code>), linear regression (<code>type=2</code>), higher polynomial regression (<code>type=2</code> with <code>smooth=3</code> for third order, <code>smooth=4</code> for fourth order, etc.), cubic spline (<code>type=3</code>), smooth spline (<code>type=4</code>, default smoothing level 0.3, which can be adapted using <code>smooth</code>, e.g., <code>smooth=0.7</code>), or locally weighted spline (loess, <code>type=5</code>, default smoothing 0.75, which can be adapted using <code>smooth</code>). Instead of with numbers, <code>type</code> can also be provided with easier to remember names: "int", "inter" or "interp" for linear interpolation, "reg", "regr", "poly" or "polyn" for linear or polynomial regression, "spl" or "spline" for cubic spline, "sm" or "smooth" for smooth spline, and "loess" or "lowess" for locally weighted spline (the names should be quoted, e.g., <code>type="smooth"</code>). Different model types will require different minimum amounts of dates, e.g., a smooth spline needs at least four data points, and linear interpolation or regression at least two.
+
+<p>Hiatuses can be modelled by providing their depths, e.g., <code>hiatus=470</code> or in case of multiple ones, <code>hiatus=c(470, 600)</code>. Each of the resulting sections will require sufficient data points (e.g., a smooth spline needs at least four dates), otherwise clam will not run. 
+
+<p>Events of instantaneous deposition, or 'slumps', can be modelled by providing their upper and lower depths, e.g., <code>slump=c(50, 80)</code>. If there are multiple slumps, provide a list of all their upper and lower depths, e.g., <code>slump=c(50, 80, 250, 260)</code>. Before running the model, clam will excise these intervals, and will add the depths again after the model runs. Slumps will be indicated as horizontal bars on the graph (default <code>slumpcol=grey(0.75)</code>). 
+
+<p>By default, ages are calculated at 1 cm resolution (depth units <code>depth="cm"</code>, at resolution <code>every=1</code>), from the shallowest (<code>dmin</code>) to the deepest (<code>dmax</code>) dated depth of the core. Alternative sequences of depths can be provided, e.g., through extrapolating beyond the dated depths (providing alternatives for the default <code>dmin</code> and/or <code>dmax</code>), or by providing a specific sequence of depths, e.g <code>depthseq=c(0:100, seq(102, 200, by=2))</code> for 1 cm resolution for 0:100 cm depth, followed by 2 cm resolution further down. In case a file with extension _depths.txt is present within a core's directory, the depths in this file will be used if told so explicitly: <code>depths.file=TRUE</code> (this is a change from previous clam versions). This depths file should contain one single column with the depths, without headers (see clam/Example/Example_depths.txt).
+
+<p>If the data points would have a symmetrical distribution (e.g., normal), it would be straightforward to calculate the mean and the confidence levels for an applied age-depth model. However, since calibrated radiocarbon ages are often highly asymmetrical with multiple peaks, we need to use an alternative method to calculate the confidence levels for an age-depth model. Clam does so by repeated sampling of point estimates from the calibrated distributions of the dates (with the probability of an age being drawn being proportional to its height of the probability distribution at that age, see <a href="#eq.1">eq.1</a>), each time calculating an age-depth model through these points. This is also called importance-sampling. An extra error akin to Heegaard et al (2005)'s mixed effect age-depth modelling can be added (<code>mixed.effect=TRUE</code>). In this case, the midpoints of all dates will be resampled using their errors, and used as points for the age-model. By default, this process will be repeated <code>its=1000</code> times.
+
+<p>The polynomial, weighted spline and loess spline age-depth models are weighted (by default according to the calibrated probabilities of the dates, <code>wghts=1</code>, alternatively by their laboratory errors, 1/errors<sup>2</sup>, <code>wghts=2</code>). However, because the iteration process tends to sample more likely ages preferentially, the dates are already weighted automatically. Thus even without applying extra weighting (<code>wghts=0</code>), dates with larger uncertainties will show a larger spread of sampled calendar ages.
+
+<p>After having obtained many age-depth models, their distributions are analysed. Each iteration will cause a slightly different age-depth model, and thus a slightly different calendar age for any given depth in the core. The default amount of iterations is <code>its=1000</code>, which often gives good results at least for initial runs. For more reliable estimates, use more iterations, e.g., 10,000. The distribution of all age-models can be shown with grey-scales using, e.g., <code>greyscale=500</code> (which will produce grey-scales at 500 equally spaced core depths, based on the histograms of the calendar age estimates at those depths). This greyscale option does not work with age-models containing hiatuses.
+
+<p>Confidence intervals of the age-depth models are calculated at 95% (2 sd, <code>prob=0.95</code>) level by default. This is done by removing the upper and lower quantiles (e.g., 2.5% and 97.5% for the default 95% confidence ranges), because using the extremes of the highest posterior density intervals would sometimes lead to jumpy ranges (or "mouse-bites"). Because of <i>i</i>) the multimodal distribution of most <sup>14</sup>C dates and <i>ii</i>) the uncertainties connected to age-modelling choices, using 95% ranges is safer than the 68% (1 sd) level used in many older studies. 
+
+<p>Because the confidence levels are calculated from random simulations, each run will obtain a slightly different outcome. Therefore the user should check for consistency of results by re-running the analysis several times. Please do also test for robustness of model results by re-running using alternative settings (e.g., for <code>type</code> or <code>smooth</code>). 
+
+<p>For any individual age-model iteration, the calibrated ages need to be reduced to point-estimates (see <a href="#this">Blaauw, 2010</a>). Also, a single "best" age-depth model needs to be provided with which depths can be translated to single calendar ages (e.g., for proxy curves, however see Blaauw et al. 2007 for proxy diagrams based on multiple age-depth curves). These curves can be based on models through the midpoints of the hpd ranges (<code>est=3</code>), weighted means (<code>est=4</code>), medians (<code>est=5</code>) maximum densities (intercept, <code>est=6</code>) or midpoint of the entire calibrated distributions (<code>est=7</code>) of the individual calibrated distributions (Telford et al. 2004). Clam's preferred alternative however is to find, for every depth, the weighted average (default, <code>est=1</code>) or midpoint (<code>est=2</code>) of the calendar ages from the age-depth models themselves. These latter estimates are thus based on all dates together as well as on the applied model.
+
+<p>By default, any models with age-reversals will be removed with a warning, and up to a specified proportion of the model iterations will be removed before an extra warning is given that there are too many models with reversals (default <code>remove.reverse=0.5</code>). In case this option is not activated, clam will warn the user of any age-reversals. The first time that clam is ran in an R session, R might print a warning about a different alias method being used; you can ignore this message. Clam will also check for a range of obviously wrong settings and warn correspondingly.
+
+<p>A goodness-of-fit will be calculated for the model, based on the product of the probabilities of the modelled ages of the dated depths. In more detail, the probability of the modelled year from the best age-model given the date is calculated for each date; then the logarithms of these are summed and multiplied by -1. The lower the measure, the better the fit. Values cannot be compared between different cores. This number is for general guidance only and should not be over-interpreted; your qualitative opinion on the shape and fit of the model, given your knowledge about the site, will often be a much better indicator.
+
+<p>Each clam run will produce a range of files within the core's folder. One, ending with "_calibrated.txt" contains the calibrated age ranges of the <sup>14</sup>C and other dates. The others will be named according to the core's name followed by the model type, and contain the age estimates for all depths (files ending with "_ages.txt"), settings (files ending with "_settings.txt") and graphs (files ending with ".pdf" and ".png"). Alternative names can be given by providing, e.g., <code>runname="SplineTry4"</code>. The file containing the age estimates has 5 columns; first the depths, then the minima and maxima of the confidence intervals, then a "best" estimate, and finally the reconstructed accumulation rates. The reported values are rounded to 0 decimals by default (<code>decimals=0</code>). Accumulation rates are in yr/cm ("deposition time") by default (<code>accrate=0</code>), but can be reported in cm/yr (<code>accrate=1</code>).
+
+<h3>Graph</h3>
+
+<p>A graph of the age-depth model is produced automatically. The axes can be changed from default settings by adapting the range (<code>calmin</code>, <code>calmax</code>, <code>dmin</code>, or <code>dmax</code>) or their labels (<code>dlab</code> for depths, <code>yrlab</code> for years). The name of the core is plotted, unless <code>plotname=FALSE</code> is specified. By default, the confidence intervals of the age-depth model are plotted; this can be changed be setting <code>plotrange=FALSE</code>. The axes can be reversed and rotated; <code>revd=TRUE</code> will reverse the default order of depths, <code>revyr=TRUE</code> will do the same for the age scale, and <code>revaxes</code> will put depths on the horizontal axis and ages on the vertical one.
+
+<p>The colours for the dates and the model are semi-transparent colours by default, using R's rgb function using four variables between 0 and 1; red, green, blue and transparency respectively. For example, <code>C14col=rgb(0, 0, 1, 0.5)</code> results in transparent blue. The colours can be changed by adapting the values of <code>C14col</code> for <sup>14</sup>C dates, <code>calcol</code> for other dates, <code>outcol</code> for outlying dates, <code>bestcol</code> for the "best" model, <code>rangecol</code> for the confidence ranges, and <code>slumpcol</code> for the colour of any slumps. Some postscript devices cannot handle semi-transparency; adapt the colours if using these devices. Copies of the graph are saved to the core's directory by default; this can be avoided by setting <code>plotpdf=FALSE</code> and/or <code>plotpng=FALSE</code>.
+
+The heights of the plotted calibrated distributions can be adapted from the default (<code>calhght=0.3</code>). By default, the calendar age distribution of each of the dates is normalised to 1, and as a result more precise dates will have higher peaks than less precise dates. If one of the dates is so precise that it "overwhelms" the other dates, you could adapt the maximum drawn peak height from its default <code>maxhght=0.01</code>. To plot all dates with the same peak height, use <code>ash=TRUE</code>. The distributions are drawn "mirrored" by default, and this can be cancelled by providing <code>mirror=FALSE</code>.
+
+Details of the graph settings can be adapted through R's <code>par()</code> function. Within clam, the margins of the four axes can be adapted by changing the default values of <code>mar=c(3.5, 3., 2, 1)</code>. The spacing of the axis text can be changed by adapting <code>mgp=c(2, 1, 0)</code>. By default and L-shaped "box" is drawn around the graph, and this can be changed to other shapes by providing for example a "c", "o" or "]" in <code>bty</code> (<code>bty="n"</code> draws no such lines).
+
+<h3>Additional analysis</h3>
+
+<p>The age distribution of a specific depth in the sequence can be investigated in more detail by providing this depth in <code>ageofdepth</code>. Together with the full age-depth model, a histogram of the depth's age distribution will be drawn, and the age estimates will be stored in R's memory under the name .ageofdepth. With fewer iterations, the histogram will be more variable between runs.
+
+<p>By default, after every clam run the data (calibrated distributions, ranges, point estimates, iterations, age-depth models) are removed from R's memory (<code>storedat=FALSE</code>). If you want to have the data stored in memory, e.g. for additional pruning of the data, set storedat to TRUE. Then, <code>calrange</code> gives the confidence intervals and age point estimates for each core depth, <code>dets</code> lists the dates, and <code>dat</code> shows information about the dates. The latter is a list with elements (identified by a dollar sign) such as the calibrated distributions (<code>dat$calib</code>), highest posterior density ranges (<code>dat$hpd</code>), medians (<code>dat$med</code>), and midpoints (<code>dat$mid</code>).
+
+After a clam run (setting <code>storedat=TRUE</code>), reconstructed accumulation rates can be plotted for a particular depth (e.g., <code>accrate.depth(90)</code>) or age (e.g., <code>accrate.age=500</code>). Accumulation rates are in years per cm (deposition times) by default, but can be set to cm per year using <code>yrcm=FALSE</code>. The function reports and draws the confidence limits, by default at 95% (<code>prob=0.95</code>).
+
+<p>If clam is ran with <code>proxies=TRUE</code>, after that run individual proxies can be plotted on a time-scale. A file starting with the core's name and ending with "_proxies.csv" should be stored inside the core's directory. The file should contain a column with the depths, followed by columns containing proxy scores; all columns should be separated by commas. The first line should contain the proxy names, also separated by commas (see clam/Cores/Example/Example_proxies.csv for an example). To plot the first proxy in the file against time, type <code>plot.proxies(1)</code>, and so on for the other proxies in the file. By default, the confidence intervals of the calendar ages are plotted (<code>errors=TRUE</code>) in grey (<code>proxcol=grey(0.5)</code>). The order of the calendar axis can be changed using <code>revyr=TRUE</code>.
+
+
+<hr>
+<table align="right"><tr><td><a href="#top">to top of page</a></table>
+<h2><a name="options">All options</a></h2>
+
+<p>Below follows a list of all options of the functions clam and calibrate. Options left empty will be set at the default values. 
+
+<p>Options for clam()
+<table border=1>
+ <th>option<th>default<th>description
+ <tr><td><code>name</code><td><code>"Example"   </code><td>name of the core, given using quotes. Defaults to the core provided with clam
+ <tr><td><code>type</code><td><code>1           </code><td>1 linear interpolation between neighbouring levels ("int", "inter", "interp") 
+   <br>2 linear or higher polynomial regression ("reg", "regr", "poly" or "polyn", default linear) 
+   <br>3 cubic spline ("spl", "spline")
+   <br>4 smooth spline ("sm", "smooth", default smoothing 0.3) 
+   <br>5 locally weighted spline ("loess", "lowess", default smoothing 0.75, cannot extrapolate)
+ <tr><td><code>smooth</code><td><code>1 (linear) for type=2
+   <br>0.3 for type=4
+   <br>0.75 for type=5 </code><td>degree of smoothing. Gives polynomial degree for model type 2
+ <tr><td><code>prob</code><td><code>.95 </code><td>Confidence interval (between 0 and 1)
+ <tr><td><code>its</code><td><code>1000          </code><td>amount of iterations
+ <tr><td><code>wghts</code><td><code>1          </code><td>0 no weighting
+   <br>1 weighted to calibrated probabilities of sampled calendar years
+   <br>2 weighted to (inverse squared) errors of the dates
+ <tr><td><code>cc</code><td><code>1   </code><td>calibration curve for C14 dates (1, 2 or 3)
+ <tr><td><code>cc1</code><td><code>"IntCal13.14C"   </code><td>for northern hemisphere terrestrial C14 dates
+ <tr><td><code>cc2</code><td><code>"Marine13.14C"   </code><td>for marine C14 dates
+ <tr><td><code>cc3</code><td><code>"SHCal13.14C"   </code><td>for southern hemisphere C14 dates
+ <tr><td><code>cc4</code><td><code>"mixed.14C"   </code><td>for mixed terrestrial/marine C14 dates
+ <tr><td><code>cc5</code><td><code>"gluedHemispheres.14C"   </code><td>for southern hemisphere C14 dates beyond 11 kcal BP (not required anymore)
+ <tr><td><code>postbomb</code><td><code>0   </code><td>use which postbomb curve for negative C14 ages? 0=none
+ <tr><td><code>pb1</code><td><code>"postbomb_NH1.14C"   </code><td>for northern hemisphere region 1 postbomb C14 dates
+ <tr><td><code>pb2</code><td><code>"postbomb_NH2.14C"   </code><td>for northern hemisphere region 2 postbomb C14 dates 
+ <tr><td><code>pb3</code><td><code>"postbomb_NH3.14C"   </code><td>for northern hemisphere region 3 postbomb C14 dates
+ <tr><td><code>pb4</code><td><code>"postbomb_SH1-2.14C"   </code><td>for southern hemisphere postbomb region 3 C14 dates
+ <tr><td><code>pb5</code><td><code>"postbomb_SH3.14C"   </code><td>for southern hemisphere postbomb regions 1-2 C14 dates
+ <tr><td><code>outliers</code><td><code>c()     </code><td>the number of any dates to be considered outlying, e.g. c(5,6) for the fifth and sixth date counting from the top of a core
+ <tr><td><code>ignore</code><td><code>c()       </code><td>the number of any dates that should be ignored, e.g., c(5,6) for the fifth and sixth date counting from the top of a core
+ <tr><td><code>youngest</code><td><code>c()       </code><td>the age beyond which dates should be truncated
+ <tr><td><code>extradates</code><td><code>c()       </code><td>depths of any additional dates with their files of ages and probabilities <tr><td><code>slump</code><td><code>c()       </code><td>upper and lower depths of sections of abrupt accumulation that should be excised, e.g., c(600, 550, 120, 100) for two sections of 600-550 and 120-100cm depth 
+ <tr><td><code>est</code><td><code>1            </code><td>1 weighted averages of age-depth model derived ages
+   <br>2 midpoints of age-depth model derived ages
+   <br>3 midpoints of calibrated ranges
+   <br>4 weighted means of calibrated ranges
+   <br>5 medians of calibrated distributions
+   <br>6 maximum densities of calibrated distributions
+   <br>7 midpoints of entire calibrated distributions (with probabilities beyond threshold)   
+ <tr><td><code>calibt</code><td><code>FALSE   </code><td>off by default; provide two parameters such as c(3,4)      
+ <tr><td><code>mixed.effect</code><td><code>FALSE </code><td>set to TRUE to activate mixed-effect modelling
+ <tr><td><code>dmin</code><td><code>c()  </code><td>minimum depth of age-depth model (e.g., extrapolate)
+ <tr><td><code>dmax</code><td><code>c() </code><td>maximum depth of age-depth model (e.g., extrapolate)
+ <tr><td><code>every</code><td><code>1          </code><td>resolution at which (ages for) depths are calculated
+ <tr><td><code>yrmin</code><td><code>c()   </code><td>minimum of calendar axis of age-depth plot (calculate automatically by default)
+ <tr><td><code>yrmax</code><td><code>c()   </code><td>maximum of calendar axis of age-depth plot (calculated automatically by default)
+ <tr><td><code>yrsteps</code><td><code>1          </code><td>temporal resolution at which calibrated ages are calculated (in calendar years) <tr><td><code>pbsteps</code><td><code>0.01   </code><td>temporal resolution at which postbomb C14 ages are calibrated (in calendar years)
+ <tr><td><code>hpdsteps</code><td><code>1   </code><td>temporal resolution at which highest posterior density ranges are calibrated (in calendar years)  
+ <tr><td><code>BCAD</code><td><code>FALSE (use cal BP) </code><td>use BC/AD or cal BP scale
+ <tr><td><code>decimals</code><td><code>0       </code><td>amount of decimals for rounding
+ <tr><td><code>accrate</code><td><code>0       </code><td>give accumulation rates in yr/cm (0) or cm/yr (1)
+ <tr><td><code>ageofdepth</code><td><code>c() </code><td>calculate age estimates of a specific depth
+ <tr><td><code>depth</code><td><code>"cm"       </code><td>depth units
+ <tr><td><code>depthseq</code><td><code>c() </code><td>sequence of depths for which age estimates are to be calculated (default: from dmin to dmax with steps of size every)
+ <tr><td><code>depths.file</code><td><code>FALSE  </code><td>use a file with depths for depthseq
+ <tr><td><code>thickness</code><td><code>1      </code><td>thickness of the dated samples
+ <tr><td><code>hiatus</code><td><code>c()       </code><td>depths of any hiatuses, e.g., c(500, 300). Each sub-section must have at least 2 dates (4 for smoothing spline; does not work with loess as it cannot extrapolate)
+ <tr><td><code>remove.reverse</code><td><code>0.5 </code><td>proportion of age-models with reversals that can be removed before prompting a warning. Set at FALSE to avoid removing models with reversals
+ <tr><td><code>times</code><td><code>5          </code><td>half-range of calibration curve used to calibrate dates (multiplication factor for the dates' errors)
+ <tr><td><code>sep</code><td><code>","          </code><td>separator between the fields of the plain text file containing the dating information
+ <tr><td><code>dec</code><td><code>"."          </code><td>charactor for decimal points 
+ <tr><td><code>ext</code><td><code>".csv"       </code><td>extension of the file containing the dating information
+ <tr><td><code>runname</code><td><code>core name and model type combined </code><td>text to add to the corename for specific runs, e.g., "MyCore_Test1" 
+ <tr><td><code>storedat</code><td><code>FALSE   </code><td>store the dates and age-model within R after a clam run
+ <tr><td><code>threshold</code><td><code>1e-6    </code><td>below which value should probabilities be excluded from calculations
+ <tr><td><code>proxies</code><td><code>FALSE       </code><td>set to TRUE to plot proxies against age after the run
+ <tr><td><code>revaxes</code><td><code>FALSE       </code><td>set to TRUE to plot ages on the vertical axis and depth on the horizontal axis
+ <tr><td><code>revd</code><td><code>TRUE       </code><td>plot depth axis in reverse
+ <tr><td><code>revyr</code><td><code>TRUE       </code><td>plot age axis in reverse
+ <tr><td><code>calhght</code><td><code>1   </code><td>heights of the calibrated distributions in the age-depth plot
+ <tr><td><code>maxhght</code><td><code>0.01       </code><td>maximum height of age probability distributions
+ <tr><td><code>mirror</code><td><code>TRUE       </code><td>plot the age distributions in "mirror" style (above and below depth) 
+ <tr><td><code>plotrange</code><td><code>TRUE   </code><td>plot the confidence ranges of the age-model
+ <tr><td><code>bty</code><td><code>"l"       </code><td>
+ <tr><td><code>mar</code><td><code>c(3.5,3,2,1)   </code><td>plot margins (amount of white space along edges of axes 1-4)
+ <tr><td><code>mgp</code><td><code>c(2,1,0) </code><td>axis text margins (where should titles, labels and tick marks be plotted) 
+ <tr><td><code>bty</code><td><code>"l" </code><td>draw a box around the graph ("n" for none, and "l", "7", "c", "u", "]" or "o" for correspondingly shaped boxes) 
+ <tr><td><code>plotpdf</code><td><code>TRUE    </code><td>produce a pdf file of the age-depth plot
+ <tr><td><code>plotpng</code><td><code>TRUE    </code><td>produce a png file of the age-depth plot
+ <tr><td><code>greyscale</code><td><code>none   </code><td>produce a grey-scale representation of all age-models (number gives resolution, e.g., 500 bins; will cancel plotting of the confidence intervals)
+ <tr><td><code>yrlab</code><td><code>"cal BP" or "BC/AD" </code><td>alternative names can be provided
+ <tr><td><code>dlab</code><td><code>"depth (cm)" </code><td>alternative names can be provided
+ <tr><td><code>calcol</code><td><code>rgb(0,0.5,0.5,0.5) (transparent blue) </code><td>colour of the calibrated distributions in the age-depth plot
+ <tr><td><code>C14col</code><td><code>"blue"    </code><td>colour of the calibrated ranges of the dates
+ <tr><td><code>outcol</code><td><code>"red"     </code><td>colour of outlying dates
+ <tr><td><code>outlsize</code><td><code>1       </code><td>size of symbols outlying dates
+ <tr><td><code>bestcol</code><td><code>"black"  </code><td>colour of the "best" age-depth model (based on chosen value for est)
+ <tr><td><code>rangecol</code><td><code>rgb(0,0,0,0.3) (transparent grey) </code><td>colour of plotted confidence ranges
+ <tr><td><code>slumpcol</code><td><code>grey(0.75) </code><td>colour of slump
+ <tr><td><code>plotname</code><td><code>TRUE </code><td>print the core name on the graph
+ <tr><td><code>ash</code><td><code>FALSE </code><td>plot all distributions at the same height
+</table>
+
+
+<p>Options for calibrate()
+<table border=1>
+ <th>option<th>default<th>description
+ <tr><td><code>cage</code><td><code>2450   </code><td>mean of the C14 age
+ <tr><td><code>error</code><td><code>50   </code><td>error of the C14 age
+ <tr><td><code>reservoir</code><td><code>0   </code><td>reservoir age or age offset
+ <tr><td><code>prob</code><td><code>.95   </code><td>probability confidence intervals (between 0 and 1)
+ <tr><td><code>cc</code><td><code>1   </code><td>calibration curve for C14 dates (1, 2 or 3)
+ <tr><td><code>cc1</code><td><code>"IntCal13.14C"   </code><td>for northern hemisphere terrestrial C14 dates
+ <tr><td><code>cc2</code><td><code>"Marine13.14C"   </code><td>for marine C14 dates
+ <tr><td><code>cc3</code><td><code>"SHCal13.14C"   </code><td>for southern hemisphere C14 dates
+ <tr><td><code>cc4</code><td><code>"mixed.14C"   </code><td>for mixed marine/terrestrial C14 dates 
+ <tr><td><code>cc5</code><td><code>"gluedHemispheres.14C"   </code><td>for southern hemisphere C14 dates beyond 11 kcal BP (not required anymore)
+ <tr><td><code>postbomb</code><td><code>FALSE   </code><td>calibration curve for postbomb dates
+ <tr><td><code>pb1</code><td><code>"postbomb_NH1.14C"   </code><td>for northern hemisphere region 1 postbomb C14 dates
+ <tr><td><code>pb2</code><td><code>"postbomb_NH2.14C"   </code><td>for northern hemisphere region 2 postbomb C14 dates 
+ <tr><td><code>pb3</code><td><code>"postbomb_NH3.14C"   </code><td>for northern hemisphere region 3 postbomb C14 dates
+ <tr><td><code>pb4</code><td><code>"postbomb_SH1-2.14C"   </code><td>for southern hemisphere region 3 postbomb C14 dates
+ <tr><td><code>pb5</code><td><code>"postbomb_SH3.14C"   </code><td>for southern hemisphere regions 1-2 postbomb C14 dates
+ <tr><td><code>yrsteps</code><td><code>1   </code><td>temporal resolution at which C14 ages are calibrated (in calendar years) 
+ <tr><td><code>pbsteps</code><td><code>0.01   </code><td>temporal resolution at which postbomb C14 ages are calibrated (in calendar years)
+ <tr><td><code>hpdsteps</code><td><code>1   </code><td>temporal resolution at which highest posterior density ranges are calibrated (in calendar years) 
+ <tr><td><code>calibt</code><td><code>FALSE   </code><td>Off by default; provide two parameters such as c(3,4)    
+ <tr><td><code>yrmin</code><td><code>c()    </code><td>minimum of calendar axis (default calculated automatically)
+ <tr><td><code>yrmax</code><td><code>c()   </code><td>maximum of calendar axis (default calculated automatically) 
+ <tr><td><code>minC14</code><td><code>c() </code><td>minimum of C14 axis (default calculated automatically)
+ <tr><td><code>maxC14</code><td><code>c()   </code><td>maximum of C14 axis (default calculated automatically)
+ <tr><td><code>times</code><td><code>5   </code><td>half-range of calibration curve used to calibrate dates (multiplication factor for the date's errors)
+ <tr><td><code>calheight</code><td><code>0.3   </code><td>maximum height of the C14 and calibrated distributions (as proportion of the invisible secondary axes)
+ <tr><td><code>expand</code><td><code>0.1   </code><td>by which ratio should the calendar axis be expanded to fit the calibrated distribution
+ <tr><td><code>threshold</code><td><code>1e-6    </code><td>below which value should probabilities be excluded from calculations
+ <tr><td><code>graph</code><td><code>TRUE   </code><td>plot a graph of the calibrated date. If set to FALSE, only the hpd ranges will be given
+ <tr><td><code>storedat</code><td><code>FALSE   </code><td>store the dates within the R session after a clam run
+ <tr><td><code>xlab</code><td><code>"cal BP" or "BC/AD"  </code><td>alternative names can be provided
+ <tr><td><code>ylab</code><td><code><sup>14</sup>C BP  </code><td>alternative names can be provided
+ <tr><td><code>BCAD</code><td><code>FALSE   </code><td>use BC/AD or cal BP scale (default cal BP)
+ <tr><td><code>mar</code><td><code>c(3.5,3,2,1)   </code><td>plot margins (amount of white space along edges of axes 1-4)
+ <tr><td><code>mgp</code><td><code>c(2,1,0) </code><td>axis text margins (where should titles, labels and tick marks be plotted) 
+ <tr><td><code>bty</code><td><code>"l" </code><td>draw a box around the graph ("n" for none, and "l", "7", "c", "u", "]" or "o" for correspondingly shaped boxes)
+ <tr><td><code>title</code><td><code>cage +- error </code><td>alternative titles can be provided
+ <tr><td><code>date.col</code><td><code>"red"   </code><td>colour of the "dot-bar" plot of the C14 date
+ <tr><td><code>cc.col</code><td><code>rgb(0,0.5,0,0.7) (transparent green) </code><td>colour of the calibration curve
+ <tr><td><code>dist.col</code><td><code>rgb(0,0,0,0.3) (transparent light grey)  </code><td>colour of the calibrated distribution
+ <tr><td><code>sd.col</code><td><code>rgb(0,0,0,0.5) (transparent dark grey) </code><td>colour of calibrated range
+</table>
+
+<hr>
+<table align="right"><tr><td><a href="#top">to top of page</a></table>
+<h2><a name="tips">R tips and tricks</a></h2>
+
+<p>For a look under the hood of clam, check the clam.R code in a plain text editor such as WordPad (not Word), or type its functions in R without the brackets (e.g., <code>clam</code>, <code>calibrate</code>, <code>.caldist</code> for calibration, <code>.hpd</code> for the highest posterior density, <code>.smpl</code> for the sampling of dates, <code>.interp</code> for linear interpolation, <code>.poly</code> for polynomial regression, <code>.spline</code> for cubic spline, <code>.smooth</code> for smooth spline, and <code>.loess</code> for locally weighted spline). Comments (text starting with #) explain what the code is doing.
+
+<p>Changes can be made to the source code of clam; open clam.R in a plain text editor. After adapting, save the code and reload it in R by typing <code>source("clam.R")</code>. Suggestions for corrections of and additions to the code are much appreciated and can be <a href=mailto:maarten.blaauw@qub.ac.uk>mailed</a>.
+
+<p>It is important for R to work in the correct directory, so that it can find the code and the data. After opening R, the working directory can be changed by <code>setwd</code>, or in Windows by following File -> Change Working Directory from the top menus. Otherwise, you can open R directly in clam's directory by navigating to its directory in a terminal and opening R there (Linux/Mac), or by making a dedicated "clam" desktop icon for R (right-click on the R icon, select "Properties" and specify the directory under "Start in:").
+
+<p>If you have a list of dates to calibrate (e.g., two columns of the <sup>14</sup>C ages and their errors), you could copy the columns into your clipboard (<code>dates <- read.table("clipboard")</code>), and then type <code>for(i in 1:nrow(dates)) calibrate(dates[i,1], dates[i,2])</code> to calibrate all dates. (the clipboard option does not work on all operating systems.)
+
+<p>Previously typed commands can be retrieved by pressing the cursor-up key, after which they can be edited and/or run again. After typing part of a command, pressing tab will fill in the rest of the command or suggest alternatives.
+
+<p>There is much help available for R, either within R through typing a question mark followed by an internal R command (e.g, <code>?plot</code>), on-line (e.g., <a href="http://www.rseek.org">www.rseek.org</a> or <a href="http://www.r-project.org">www.r-project.org</a>), through reading the R <a href="http://cran.r-project.org/doc/manuals/">manuals</a> or any of the <a href="http://cran.r-project.org/doc/contrib/">reference cards</a>, or, as a last resort, by asking questions in <a href="http://www.r-project.org/mail.html">mailing lists</a>.
+
+<hr>
+<table align="right"><tr><td><a href="#top">to top of page</a></table>
+<h2><a name="versions">Version history</a></h2>
+
+<p>This version (2.2) has the following changes from version 2.1:
+
+<ul>
+ <li>updated calibration curves (IntCal13 for both hemispheres and the ocean, plus postbomb curves)
+ <li>corrected behaviour of est
+ <li>corrected use of alternative separator in .csv files (e.g. ";" instead of ","). Also added option to specify alternative decimal points (e.g. "," instead of ".")
+ <li>repaired bug that caused incorrect depths for <code>plot.proxies</code>
+ <li>repaired bug with slump, causing some dates to be assigned wrong depths
+ <li>corrected bug with drawing sample thickness when extradates applied
+ <li>new option for est, midpoint of entire calibrated distributions (above threshold, est=7). This differs slightly from the midpoint of the calibrated hpd <i>ranges</i> (est=3)
+ <li>minor changes to the manual, incl. more explicit citation suggestions
+ <li>added function <code>student.t</code> to show effect alternative calibration
+</ul>
+
+<p>Version 2.1 had the following changes from previous versions:
+
+<ul>
+ <li>corrected wrong behaviour when using hiatus and slump, e.g., <code>clam(hiatus=470, slump=c(120,140))</code> 
+ <li>polynomial age-modelling now correctly deals with weights (wght)
+ <li>uncertainties for age offsets can be included in <code>calibrate()</code>
+ <li>marine offset can now be specified when producing a mixed terrestrial/marine curve (<code>mix.curves()</code>)
+ <li>new function <code>glue.curves</code> that can be used to extend SHCal04 to 50 kcal BP using IntCal09 and a specified SH offset (obsolete since release of SHCal13)
+ <li>corrected references in the manual
+</ul> 
+
+<p>Version 2.0 had the following changes from previous versions: 
+
+<p>New options: 
+<ul>
+ <li>Depth segments of abrupt sedimentation can now be excised with the option slump
+ <li>different colours for C14 and calendar dates
+ <li>accumulation rates are calculated and added as a fifth column to the _ages.txt file
+ <li>future ages can be avoided in the dates and the age-depth model
+ <li>option to rotate the axes, or reverse the order for the age or depth axes
+ <li>optional calibt calibration (Christen and Perez 2009)
+ <li>option to provide .txt files with ages and probs for depths
+ <li>single instead of mirrored calibrated histograms can be drawn in age-depth graphs
+</ul>
+
+<p>New functions:
+<ul>
+ <li>mix.curves
+ <li>pMC.age, age.pMC to convert between <sup>14</sup>C ages and percent modern carbon
+ <li>proxy plot
+ <li>histograms and confidence ranges for accumulation rates can be calculated for specific depths or ages
+</ul>
+
+<p>Changed behaviour:
+<ul>
+ <li>probability distributions are now normalised, so that precise ages have higher heights than imprecise ages. This can be turned off
+ <li>more consistent naming of dmax, dmin, etc.
+ <li>Warnings are provided in case of clearly wrong settings (e.g. type > 5)
+ <li>Internal calculations for C14 dates are now done in F14C (as in OxCal)
+ <li>core name added to age-plots
+ <li>can now leave thickness column out of .csv file (so, need 6 columns only)
+ <li>instead of standard deviation, the statistically more correct probability is used (e.g., what was formerly sdev=2 is now prob=0.95)
+ <li>use of file _depths.txt now needs to be activated explicitly
+</ul>
+
+<p>Corrected: 
+<ul>
+ <li>corrected a bug with calibrating single dates on old or young extremes of the calibration curve
+ <li>corrected wrong behaviour when outliers and mixed.effect are used together
+ <li>corrected a reservoir effect bug in mixed.effect
+ <li>corrected a bug in hpds around 0 BC/AD when BCAD=TRUE
+ <li>corrected a wrong reaction to clam(BCAD=TRUE)
+ <li>corrected wrong yr.axis titles in png and pdf
+ <li>corrected a bug in title option calibrate()
+ <li>better error message when type=5 & hiatus
+ <li>enhanced treatment of plotting parameters (par)
+ <li>better rounding for ages.txt
+ <li>squashed many more small to invisible bugs
+</ul>
+
+<hr>
+<table align="right"><tr><td><a href="#top">to top of page</a></table>
+<h2><a name="trouble">Troubleshooting</a></h2>
+
+<p>Most of the times if clam reports problems, its messages will provide hints as to how the problems can be solved. A distinction can be made between "errors", which prevent clam from running, and less severe "warnings", which do not prevent clam from running but will require extra caution as the output might well be wrong. 
+
+<p>If upon running clam reports errors such as "cannot open file 'Cores/Example/Example.csv': Permission denied", then probably something is wrong with clam's file permissions. Check that you have writing access to where clam has been saved, and if you cannot change the access settings, try saving clam on for example your memory stick, or directly on C:\ for Windows machines, and work from there. It is also recommended to avoid spaces in any filenames and directories.
+
+<p>If clam says that it "cannot open the connection" and "cannot open file 'Cores/Example/Example.csv': No such file or directory", then probably you have made a mistake in naming the .csv file and its directory. The core's directory must be placed under the Cores directory, and the name of the .csv file must match that of its folder exactly (incl. use of lowercase and uppercase).
+
+<p>If clam stops running while displaying an error such as "line 1 did not have 6 elements", then at least one of the lines in your .csv file does not have exactly 6 fields/columns. In a plain text editor such as WordPad, check the amount of fields of each line including the headers (tip: count the number of commas on each line), correct any mistakes, save the file and run clam again. 
+
+
+<hr>
+<table align="right"><tr><td><a href="#top">to top of page</a></table>
+<h2><a name="refs">References</a></h2>
+
+<p>Berrio, J.C., Hooghiemstra, H., Marchant, R., Rangel, O., 2002. Late-glacial and Holocene history of the dry forest area in the south Colombian Cauca Valley. <i>Journal of Quaternary Science</i> <b>17</b>: 667-682
+
+<p>Blaauw, M., Christen, J.A., Mauquoy, D., van der Plicht, J., Bennett, K.D., 2007. Testing the timing of radiocarbon-dated events between proxy archives. <i>The Holocene</i> <b>17</b>: 283-288
+
+<p>Blaauw, M., 2010. Methods and code for 'classical' age-modelling of radiocarbon sequences. <i>Quaternary Geochronology</i> <b>5</b>:  
+<a href="http://dx.doi.org/10.1016/j.quageo.2010.01.002"> 512-518</a>
+
+<p>Bronk Ramsey, C., 2013. OxCal 4.2. <a href=http://c14.arch.ox.ac.uk/oxcal>http://c14.arch.ox.ac.uk/oxcal</a>
+
+<p>Christen, J.A., P&eacute;rez E., S., 2010. A new robust statistical model for radiocarbon data. <i>Radiocarbon</i> <b>51</b>: 1047-1059
+
+<p>Heegaard, E., Birks, H.J.B., Telford, R.J., 2005. Relationships between calibrated ages and depth in stratigraphical sequences: an estimation procedure by mixed-effect regression. <i>The Holocene</i> <b>15</b>: 1-7
+
+<p>Hogg, A.G., Hua, Q., Blackwell, P.G., Niu, M., Buck, C.E., Guilderson, T.P., Heaton, T.J., Palmer, J.G., Reimer, P.J., Reimer, R.W., Turney, C.S.M., Zimmerman, S.R.J., 2013. SHCal13 southern hemisphere calibration, 0 - 50,000 cal BP. <i>Radiocarbon</i> <b>55</b>, doi:10.2458/azu_js_rc.55.16783
+
+<p>Hua, Q., Barbetti, M., Rakowski, A.Z., 2013. Atmospheric radiocarbon for the period 1950-2010. <i>Radiocarbon</i> <b>55</b>, doi:10.2458/azu_js_rc.v55i2.16177
+
+<p>R Development Core Team, 2013. R: A language and environment for statistical computing. R Foundation for Statistical Computing, Vienna, Austria. ISBN 3-900051-07-0, <a href="http://www.r-project.org">http://www.r-project.org</a>
+
+<p>Reimer, P.J., Brown, T.A., Reimer, R.W., 2004. Discussion: reporting and calibration of post-bomb 14C data. <i>Radiocarbon</i> <b>46</b>: 1299-1304
+
+<p>Reimer, P.J., Bard, E., Bayliss, A., Beck, J.W., Blackwell, P.G., Bronk Ramsey, C., Buck, C.E., Edwards, R.L., Friedrich, M., Grootes, P.M., Guilderson, T.P., Haflidason, H., Hajdas, I., Hatt&eacute;, C., Heaton, T.J., Hoffmann, D.L., Hogg, A.G., Hughen, K.A., Kaiser, K.F., Kromer, B., Manning, S.W., Niu, M., Reimer, R.W., Richards, D.A., Scott, E.M., Southon, J.R., Turney, C.S.M., van der Plicht, J., 2013. IntCal13 and Marine13 radiocarbon age calibration curves, 0-50,000 years cal BP. <i>Radiocarbon</i> <b>55</b>: 1869-1887
+
+<p>Stuiver, M., Reimer, P.J., 1993. Extended 14C database and revised CALIB radiocarbon calibration program. <i>Radiocarbon</i> <b>35</b>: 215-230
+
+<p>Telford, R.J., Heegaard, E., Birks, H.J.B., 2004. The intercept is a poor estimate of a calibrated radiocarbon age. <i>The Holocene</i> <b>14</b>: 296-298
+
+<hr>
+<table align="right"><tr><td><a href="#top">to top of page</a></table>
+<h2><a NAME="this"></a>About this manual</h2>
+
+<p>Clam is open-source software; you are free to use, copy, distribute and modify it, but please read this manual and accompanying paper before using this program, and cite properly when using/modifying it (don't forget to mention specific settings and calibration curves). This software is distributed under the terms of the <a href="http://www.gnu.org/copyleft/gpl.txt">GNU General Public License</a>. Clam does not come with any warranty and the author, a mere mortal, does not assume any responsibility for the usefulness of any portion of this program.
+
+</body>
+</html>
